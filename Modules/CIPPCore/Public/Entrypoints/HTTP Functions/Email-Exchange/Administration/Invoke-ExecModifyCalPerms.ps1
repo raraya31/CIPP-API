@@ -5,22 +5,23 @@ Function Invoke-ExecModifyCalPerms {
     .FUNCTIONALITY
         Entrypoint
     .ROLE
-        Exchange.Calendar.ReadWrite
+        Exchange.Mailbox.ReadWrite
     #>
     [CmdletBinding()]
     param($Request, $TriggerMetadata)
 
     $APIName = $Request.Params.CIPPEndpoint
-    Write-LogMessage -headers $Request.Headers -API $APINAME-message 'Accessed this API' -Sev 'Debug'
+    $Headers = $Request.Headers
+    Write-LogMessage -headers $Headers -API $APIName -message 'Accessed this API' -Sev 'Debug'
 
-    $Username = $request.body.userID
-    $Tenantfilter = $request.body.tenantfilter
-    $Permissions = $request.body.permissions
+    $Username = $Request.Body.userID
+    $TenantFilter = $Request.Body.tenantFilter
+    $Permissions = $Request.Body.permissions
 
-    Write-LogMessage -headers $Request.Headers -API $APINAME-message "Processing request for user: $Username, tenant: $Tenantfilter" -Sev 'Debug'
+    Write-LogMessage -headers $Headers -API $APIName -message "Processing request for user: $Username, tenant: $TenantFilter" -Sev 'Debug'
 
-    if ($username -eq $null) {
-        Write-LogMessage -headers $Request.Headers -API $APINAME-message 'Username is null' -Sev 'Error'
+    if ($null -eq $Username) {
+        Write-LogMessage -headers $Headers -API $APIName -message 'Username is null' -Sev 'Error'
         $body = [pscustomobject]@{'Results' = @('Username is required') }
         Push-OutputBinding -Name Response -Value ([HttpResponseContext]@{
                 StatusCode = [HttpStatusCode]::BadRequest
@@ -30,10 +31,10 @@ Function Invoke-ExecModifyCalPerms {
     }
 
     try {
-        $userid = (New-GraphGetRequest -uri "https://graph.microsoft.com/beta/users/$($username)" -tenantid $Tenantfilter).id
-        Write-LogMessage -headers $Request.Headers -API $APINAME-message "Retrieved user ID: $userid" -Sev 'Debug'
+        $UserId = (New-GraphGetRequest -uri "https://graph.microsoft.com/beta/users/$($Username)" -tenantid $TenantFilter).id
+        Write-LogMessage -headers $Headers -API $APIName -message "Retrieved user ID: $UserId" -Sev 'Debug'
     } catch {
-        Write-LogMessage -headers $Request.Headers -API $APINAME-message "Failed to get user ID: $($_.Exception.Message)" -Sev 'Error'
+        Write-LogMessage -headers $Headers -API $APIName -message "Failed to get user ID: $($_.Exception.Message)" -Sev 'Error'
         $body = [pscustomobject]@{'Results' = @("Failed to get user ID: $($_.Exception.Message)") }
         Push-OutputBinding -Name Response -Value ([HttpResponseContext]@{
                 StatusCode = [HttpStatusCode]::NotFound
@@ -42,7 +43,7 @@ Function Invoke-ExecModifyCalPerms {
         return
     }
 
-    $Results = [System.Collections.ArrayList]::new()
+    $Results = [System.Collections.Generic.List[string]]::new()
     $HasErrors = $false
 
     # Convert permissions to array format if it's an object with numeric keys
@@ -54,32 +55,32 @@ Function Invoke-ExecModifyCalPerms {
         }
     }
 
-    Write-LogMessage -headers $Request.Headers -API $APINAME-message "Processing $($Permissions.Count) permission entries" -Sev 'Debug'
+    Write-LogMessage -headers $Headers -API $APIName -message "Processing $($Permissions.Count) permission entries" -Sev 'Debug'
 
     foreach ($Permission in $Permissions) {
-        Write-LogMessage -headers $Request.Headers -API $APINAME-message "Processing permission: $($Permission | ConvertTo-Json)" -Sev 'Debug'
+        Write-LogMessage -headers $Headers -API $APIName -message "Processing permission: $($Permission | ConvertTo-Json)" -Sev 'Debug'
 
         $PermissionLevel = $Permission.PermissionLevel.value ?? $Permission.PermissionLevel
         $Modification = $Permission.Modification
         $CanViewPrivateItems = $Permission.CanViewPrivateItems ?? $false
         $FolderName = $Permission.FolderName ?? 'Calendar'
 
-        Write-LogMessage -headers $Request.Headers -API $APINAME-message "Permission Level: $PermissionLevel, Modification: $Modification, CanViewPrivateItems: $CanViewPrivateItems, FolderName: $FolderName" -Sev 'Debug'
+        Write-LogMessage -headers $Headers -API $APIName -message "Permission Level: $PermissionLevel, Modification: $Modification, CanViewPrivateItems: $CanViewPrivateItems, FolderName: $FolderName" -Sev 'Debug'
 
         # Handle UserID as array or single value
         $TargetUsers = @($Permission.UserID | ForEach-Object { $_.value ?? $_ })
 
-        Write-LogMessage -headers $Request.Headers -API $APINAME-message "Target Users: $($TargetUsers -join ', ')" -Sev 'Debug'
+        Write-LogMessage -headers $Headers -API $APIName -message "Target Users: $($TargetUsers -join ', ')" -Sev 'Debug'
 
         foreach ($TargetUser in $TargetUsers) {
             try {
-                Write-LogMessage -headers $Request.Headers -API $APINAME-message "Processing target user: $TargetUser" -Sev 'Debug'
+                Write-LogMessage -headers $Headers -API $APIName -message "Processing target user: $TargetUser" -Sev 'Debug'
                 $Params = @{
                     APIName              = $APIName
-                    Headers              = $Request.Headers
+                    Headers              = $Headers
                     RemoveAccess         = if ($Modification -eq 'Remove') { $TargetUser } else { $null }
-                    TenantFilter         = $Tenantfilter
-                    UserID               = $userid
+                    TenantFilter         = $TenantFilter
+                    UserID               = $UserId
                     folderName           = $FolderName
                     UserToGetPermissions = $TargetUser
                     LoggingName          = $TargetUser
@@ -87,25 +88,24 @@ Function Invoke-ExecModifyCalPerms {
                     CanViewPrivateItems  = $CanViewPrivateItems
                 }
 
+                # Write-Host "Request params: $($Params | ConvertTo-Json)"
                 $Result = Set-CIPPCalendarPermission @Params
 
-                $null = $results.Add($Result)
-                Write-LogMessage -headers $Request.Headers -API $APINAME-message "Successfully executed $($PermissionLevel) permission modification for $($TargetUser) on $($username)" -Sev 'Info' -tenant $TenantFilter
+                $null = $Results.Add($Result)
             } catch {
                 $HasErrors = $true
-                Write-LogMessage -headers $Request.Headers -API $APINAME-message "Could not execute $($PermissionLevel) permission modification for $($TargetUser) on $($username). Error: $($_.Exception.Message)" -Sev 'Error' -tenant $TenantFilter
-                $null = $results.Add("Could not execute $($PermissionLevel) permission modification for $($TargetUser) on $($username). Error: $($_.Exception.Message)")
+                $null = $Results.Add("$($_.Exception.Message)")
             }
         }
     }
 
-    if ($results.Count -eq 0) {
-        Write-LogMessage -headers $Request.Headers -API $APINAME-message 'No results were generated from the operation' -Sev 'Warning'
-        $null = $results.Add('No results were generated from the operation. Please check the logs for more details.')
+    if ($Results.Count -eq 0) {
+        Write-LogMessage -headers $Headers -API $APIName -message 'No results were generated from the operation' -Sev 'Warning'
+        $null = $Results.Add('No results were generated from the operation. Please check the logs for more details.')
         $HasErrors = $true
     }
 
-    $body = [pscustomobject]@{'Results' = @($results) }
+    $Body = [pscustomobject]@{'Results' = @($Results) }
 
     # Associate values to output bindings by calling 'Push-OutputBinding'.
     Push-OutputBinding -Name Response -Value ([HttpResponseContext]@{
