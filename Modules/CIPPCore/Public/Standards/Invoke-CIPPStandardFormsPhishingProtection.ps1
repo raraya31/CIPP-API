@@ -5,24 +5,29 @@ function Invoke-CIPPStandardFormsPhishingProtection {
     .COMPONENT
         (APIName) FormsPhishingProtection
     .SYNOPSIS
-        (Label) Ensure internal phishing protection for Forms is enabled
+        (Label) Enable internal phishing protection for Forms
     .DESCRIPTION
         (Helptext) Enables internal phishing protection for Microsoft Forms to help prevent malicious forms from being created and shared within the organization. This feature scans forms created by internal users for potential phishing content and suspicious patterns.
         (DocsDescription) Enables internal phishing protection for Microsoft Forms by setting the isInOrgFormsPhishingScanEnabled property to true. This security feature helps protect organizations from internal phishing attacks through Microsoft Forms by automatically scanning forms created by internal users for potential malicious content, suspicious links, and phishing patterns. When enabled, Forms will analyze form content and block or flag potentially dangerous forms before they can be shared within the organization.
     .NOTES
         CAT
-            Defender Standards
+            Global Standards
         TAG
-            "CIS", "Security", "PhishingProtection"
+            "CIS M365 5.0 (1.3.5)"
+            "Security"
+            "PhishingProtection"
+        EXECUTIVETEXT
+            Automatically scans Microsoft Forms created by employees for malicious content and phishing attempts, preventing the creation and distribution of harmful forms within the organization. This protects against both internal threats and compromised accounts that might be used to distribute malicious content.
         ADDEDCOMPONENT
         IMPACT
             Low Impact
         ADDEDDATE
-            2025-01-27
+            2025-06-06
         POWERSHELLEQUIVALENT
-            Set-FormsSettings -isInOrgFormsPhishingScanEnabled $true
+            Graph API
         RECOMMENDEDBY
             "CIS"
+            "CIPP"
         UPDATECOMMENTBLOCK
             Run the Tools\Update-StandardsComments.ps1 script to update this comment block
     .LINK

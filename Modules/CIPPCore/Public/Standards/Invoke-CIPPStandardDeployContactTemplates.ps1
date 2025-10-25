@@ -5,22 +5,24 @@ function Invoke-CIPPStandardDeployContactTemplates {
     .COMPONENT
         (APIName) DeployContactTemplates
     .SYNOPSIS
-        (Label) Deploy Contact Templates
+        (Label) Deploy Mail Contact Template
     .DESCRIPTION
-        (Helptext) Creates a new contacts in Exchange Online across all selected tenants from saved contact templates. The contact will be visible in the Global Address List unless hidden.
-        (DocsDescription) This standard creates new contacts in Exchange Online from saved contact templates. Mail contacts are useful for adding external email addresses to your organization's address book. They can be used for distribution lists, shared mailboxes, and other collaboration scenarios.
+        (Helptext) Creates new mail contacts in Exchange Online across all selected tenants based on the selected templates. The contact will be visible in the Global Address List unless hidden.
+        (DocsDescription) This standard creates new mail contacts in Exchange Online based on the selected templates. Mail contacts are useful for adding external email addresses to your organization's address book. They can be used for distribution lists, shared mailboxes, and other collaboration scenarios.
     .NOTES
         CAT
             Exchange Standards
         TAG
+        EXECUTIVETEXT
+            Deploys standardized external contact templates across all company locations, ensuring consistent communication channels with key external partners, vendors, and stakeholders. This streamlines contact management and maintains uniform business relationships.
         ADDEDCOMPONENT
-            {"type":"textField","name":"TemplateGUID","label":"Contact Template GUID","required":true}
-        MULTIPLE
-            True
+            {"type":"autoComplete","multiple":true,"creatable":false,"label":"Select Mail Contact Templates","name":"standards.DeployContactTemplates.templateIds","api":{"url":"/api/ListContactTemplates","labelField":"name","valueField":"GUID","queryKey":"Contact Templates"}}
+        DISABLEDFEATURES
+            {"report":false,"warn":false,"remediate":false}
         IMPACT
             Low Impact
         ADDEDDATE
-            2024-03-19
+            2025-05-31
         POWERSHELLEQUIVALENT
             New-MailContact
         RECOMMENDEDBY
@@ -32,6 +34,12 @@ function Invoke-CIPPStandardDeployContactTemplates {
     #>
 
     param($Tenant, $Settings)
+    $TestResult = Test-CIPPStandardLicense -StandardName 'DeployContactTemplates' -TenantFilter $Tenant -RequiredCapabilities @('EXCHANGE_S_STANDARD', 'EXCHANGE_S_ENTERPRISE', 'EXCHANGE_S_STANDARD_GOV', 'EXCHANGE_S_ENTERPRISE_GOV', 'EXCHANGE_LITE') #No Foundation because that does not allow powershell access
+
+    if ($TestResult -eq $false) {
+        Write-Host "We're exiting as the correct license is not present for this standard."
+        return $true
+    } #we're done.
 
     $APIName = 'Standards'
 

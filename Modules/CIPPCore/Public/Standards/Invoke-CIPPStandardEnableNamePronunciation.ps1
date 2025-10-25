@@ -13,12 +13,15 @@ function Invoke-CIPPStandardEnableNamePronunciation {
         CAT
             Global Standards
         TAG
+        EXECUTIVETEXT
+            Enables employees to add pronunciation guides for their names in Microsoft 365 profiles, improving communication and respect in diverse workplaces. This feature helps colleagues pronounce names correctly, enhancing professional relationships and inclusive culture.
         ADDEDCOMPONENT
         IMPACT
             Low Impact
         ADDEDDATE
             2025-06-06
         RECOMMENDEDBY
+            "CIPP"
         UPDATECOMMENTBLOCK
             Run the Tools\Update-StandardsComments.ps1 script to update this comment block
     .LINK

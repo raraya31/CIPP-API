@@ -15,6 +15,8 @@ function Invoke-CIPPStandardQuarantineTemplate {
         DISABLEDFEATURES
             {"report":false,"warn":false,"remediate":false}
         TAG
+        EXECUTIVETEXT
+            Creates standardized quarantine policies that define how employees can interact with quarantined emails, including permissions to release, delete, or preview suspicious messages. This ensures consistent security handling across the organization while providing appropriate user access to manage quarantined content.
         ADDEDCOMPONENT
             {"type":"autoComplete","multiple":false,"creatable":true,"name":"displayName","label":"Quarantine Display Name","required":true}
             {"type":"switch","label":"Enable end-user spam notifications","name":"ESNEnabled","defaultValue":true,"required":false}
@@ -40,6 +42,12 @@ function Invoke-CIPPStandardQuarantineTemplate {
     #>
 
     param($Tenant, $Settings)
+    $TestResult = Test-CIPPStandardLicense -StandardName 'QuarantineTemplate' -TenantFilter $Tenant -RequiredCapabilities @('EXCHANGE_S_STANDARD', 'EXCHANGE_S_ENTERPRISE', 'EXCHANGE_S_STANDARD_GOV', 'EXCHANGE_S_ENTERPRISE_GOV', 'EXCHANGE_LITE') #No Foundation because that does not allow powershell access
+
+    if ($TestResult -eq $false) {
+        Write-Host "We're exiting as the correct license is not present for this standard."
+        return $true
+    } #we're done.
 
     $APIName = 'Standards'
 
@@ -183,9 +191,10 @@ function Invoke-CIPPStandardQuarantineTemplate {
         }
 
         if ($true -in $Settings.report) {
-            # This could do with an improvement. But will work for now or else reporting could be disabled for now
             foreach ($Policy in $CompareList | Where-Object -Property report -EQ $true) {
-                Set-CIPPStandardsCompareField -FieldName "standards.QuarantineTemplate" -FieldValue $Policy.StateIsCorrect -TenantFilter $Tenant
+                # Convert displayName to hex to avoid invalid characters "/, \, #, ?" which are not allowed in RowKey, but "\, #, ?" can be used in quarantine displayName
+                $HexName = -join ($Policy.displayName.ToCharArray() | ForEach-Object { '{0:X2}' -f [int][char]$_ })
+                Set-CIPPStandardsCompareField -FieldName "standards.QuarantineTemplate.$HexName" -FieldValue $Policy.StateIsCorrect -TenantFilter $Tenant
             }
         }
     }
