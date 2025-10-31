@@ -5,22 +5,24 @@ function Invoke-CIPPStandardRestrictThirdPartyStorageServices {
     .COMPONENT
         (APIName) RestrictThirdPartyStorageServices
     .SYNOPSIS
-        (Label) Restrict Third-Party Storage Services in Microsoft 365 on the web
+        (Label) Restrict third-party storage services in Microsoft 365 on the web
     .DESCRIPTION
-        (Helptext) Ensures that third-party storage services are restricted in Microsoft 365 on the web. This disables the ability for users to connect external storage providers like Dropbox, Google Drive, etc. through the Office 365 web interface.
-        (DocsDescription) Ensures that third-party storage services are restricted in Microsoft 365 on the web. This disables the ability for users to connect external storage providers like Dropbox, Google Drive, etc. through the Office 365 web interface by disabling the Microsoft 365 on the web service principal.
+        (Helptext) Restricts third-party storage services in Microsoft 365 on the web by managing the Microsoft 365 on the web service principal. This disables integrations with services like Dropbox, Google Drive, Box, and other third-party storage providers.
+        (DocsDescription) Third-party storage can be enabled for users in Microsoft 365, allowing them to store and share documents using services such as Dropbox, alongside OneDrive and team sites. This standard ensures Microsoft 365 on the web third-party storage services are restricted by creating and disabling the Microsoft 365 on the web service principal (appId: c1f33bc0-bdb4-4248-ba9b-096807ddb43e). By using external storage services an organization may increase the risk of data breaches and unauthorized access to confidential information. Additionally, third-party services may not adhere to the same security standards as the organization, making it difficult to maintain data privacy and security. Impact is highly dependent upon current practices - if users do not use other storage providers, then minimal impact is likely. However, if users regularly utilize providers outside of the tenant this will affect their ability to continue to do so.
     .NOTES
         CAT
             Global Standards
         TAG
-            "CIS"
+            "CIS M365 5.0 (1.3.7)"
+        EXECUTIVETEXT
+            Prevents employees from using external cloud storage services like Dropbox, Google Drive, and Box within Microsoft 365, reducing data security risks and ensuring all company data remains within controlled corporate systems. This helps maintain data governance and prevents potential data leaks to unauthorized platforms.
         ADDEDCOMPONENT
         IMPACT
             Medium Impact
         ADDEDDATE
             2025-06-06
         POWERSHELLEQUIVALENT
-            Get-AzureADServicePrincipal -Filter "appId eq 'c1f33bc0-bdb4-4248-ba9b-096807ddb43e'" | Set-AzureADServicePrincipal -AccountEnabled \$false
+            New-MgServicePrincipal and Update-MgServicePrincipal
         RECOMMENDEDBY
             "CIS"
         UPDATECOMMENTBLOCK
@@ -31,6 +33,12 @@ function Invoke-CIPPStandardRestrictThirdPartyStorageServices {
 
     param ($Tenant, $Settings)
     ##$Rerun -Type Standard -Tenant $Tenant -Settings $Settings 'RestrictThirdPartyStorageServices'
+    $TestResult = Test-CIPPStandardLicense -StandardName 'ThirdPartyStorageServicesRestricted' -TenantFilter $Tenant -RequiredCapabilities @('SHAREPOINTWAC', 'SHAREPOINTSTANDARD', 'SHAREPOINTENTERPRISE', 'SHAREPOINTENTERPRISE_EDU','ONEDRIVE_BASIC', 'ONEDRIVE_ENTERPRISE')
+
+    if ($TestResult -eq $false) {
+        Write-Host "We're exiting as the correct license is not present for this standard."
+        return $true
+    } #we're done.
 
     $AppId = 'c1f33bc0-bdb4-4248-ba9b-096807ddb43e'
     $Uri = "https://graph.microsoft.com/beta/servicePrincipals?`$filter=appId eq '$AppId'"
@@ -40,7 +48,7 @@ function Invoke-CIPPStandardRestrictThirdPartyStorageServices {
     } catch {
         $ErrorMessage = Get-CippException -Exception $_
         Write-LogMessage -API 'Standards' -tenant $Tenant -message "Could not get current state for Microsoft 365 on the web service principal. Error: $($ErrorMessage.NormalizedError)" -sev Error -LogData $ErrorMessage
-        Return
+        return
     }
 
     if ($Settings.remediate -eq $true) {
@@ -59,7 +67,7 @@ function Invoke-CIPPStandardRestrictThirdPartyStorageServices {
                 # Normal /servicePrincipal/AppId does not find the service principal, so gotta use the Upsert method. Also handles if the service principal does not exist nicely.
                 # https://learn.microsoft.com/en-us/graph/api/serviceprincipal-upsert?view=graph-rest-beta&tabs=http
                 $UpdateUri = "https://graph.microsoft.com/beta/servicePrincipals(appId='$AppId')"
-                $null = New-GraphPostRequest -Uri $UpdateUri -Body $DisableBody -TenantID $Tenant -Type PATCH
+                $null = New-GraphPostRequest -Uri $UpdateUri -Body $DisableBody -TenantID $Tenant -Type PATCH -AddedHeaders @{'Prefer' = 'create-if-missing' }
 
                 # Refresh the current state after disabling
                 $CurrentState = New-GraphGetRequest -Uri $Uri -tenantid $Tenant | Select-Object displayName, accountEnabled, appId
